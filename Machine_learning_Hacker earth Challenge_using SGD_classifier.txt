@@ -1,0 +1,83 @@
+#-----------------------Author Yashu Gupta--------------------------------
+
+#---------Library called ------------------------------
+import pandas as pd
+import numpy as np
+import time
+from sklearn.preprocessing import LabelEncoder
+from sklearn.naive_bayes import GaussianNB
+from sklearn.linear_model import SGDClassifier
+from sklearn import svm
+#--------------------------------------------------
+train=pd.read_csv("train.csv")
+test=pd.read_csv("test.csv")
+
+#--------------------Data row and columns that are present-----------
+print("there are {} rows and {} colummns in this file  ".format(train.shape[0],train.shape[1]))
+print("there are {} rows and {} colummns in this file  ".format(test.shape[0],test.shape[1]))
+
+#---------------------------------transforming the time given in unix format to normal time-----------------
+def converted_time(m):
+    z=time.ctime(m)
+    return z
+#------------------------------------handling the data frame columns and converted to normal time---------------
+unix_cols = ['deadline','state_changed_at','launched_at','created_at']
+
+for x in unix_cols:
+    train[x]=train[x].apply(lambda k:converted_time(k))
+    test[x] = test[x].apply(lambda k: time.ctime(k))
+    #----for test same------------
+#--------------Creating the feature set--------------
+cols_to_use = ['name','desc']
+len_feats  = ['name_len','desc_len']
+count_feats  = ['name_count','desc_count']
+for i in np.arange(2):
+    train[len_feats[i]]=train[cols_to_use[i]].apply(str).apply(len)
+    train[count_feats[i]]=train[cols_to_use[i]].apply(str).apply(lambda k: len(k.split(' ')))
+    # print(train_data[len_feats[i]])
+
+
+
+#-------------Keywords transformation---(Lenfeatures & Count Features)----------------------------------------------
+train["keywords_len"]=train["keywords"].apply(str).apply(len)
+train["keywords_count"]=train["keywords"].apply(str).apply(lambda k:len(k.split('-')))
+# print(train["keywords_count"])
+
+#------------for Test data repeating the steps -----------------------
+for i in np.arange(2):
+    test[len_feats[i]] = test[cols_to_use[i]].apply(str).apply(len)
+    test[count_feats[i]] = test[cols_to_use[i]].apply(str).apply(lambda x: len(x.split(' ')))
+
+test['keywords_len'] = test['keywords'].apply(str).apply(len)
+test['keywords_count'] = test['keywords'].apply(str).apply(lambda x: len(x.split('-')))
+#-------------
+#-------------------Label encoding the data -(disable_communication,country)-----------------
+
+le=LabelEncoder()
+my_feat = ['disable_communication','country']
+for x in my_feat:
+    le.fit(list(train[x].values)+ list(test[x].values))
+    train[x] = le.transform(list(train[x]))
+    test[x]=le.transform(list(test[x].values))
+
+#--------------------------Model Training-------------------------------------
+
+cols_to_use = ['name_len','desc_len','keywords_len','name_count','desc_count','keywords_count']
+target = train['final_status']
+
+#Modeling
+k_train = train[cols_to_use]
+k_test = test[cols_to_use]
+# print(k_train.head())
+#--------------Applying the Machine learning algithim using SGD classifier ---------------
+# clf = GaussianNB()
+# clf.fit(k_train, target)
+# nvb_pred=(clf.predict(k_test))
+clf = SGDClassifier(loss="hinge", penalty="l2")
+clf.fit(k_train,target)
+new_pred=(clf.predict(k_test))
+# for i in new_pred:
+#     print(i)
+nBsub = pd.DataFrame({'project_id':test['project_id'],'final_status':new_pred})
+nBsub = nBsub[['project_id','final_status']]
+nBsub.to_csv("SGD1.csv",index = False)
